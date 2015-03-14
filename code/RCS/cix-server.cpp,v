@@ -1,0 +1,230 @@
+head	1.7;
+access;
+symbols;
+locks;
+comment	@// @;
+
+
+1.7
+date	2014.07.25.19.12.51;	author -;	state -;
+branches;
+next	1.6;
+
+1.6
+date	2014.07.25.03.24.51;	author -;	state -;
+branches;
+next	1.5;
+
+1.5
+date	2014.06.06.03.16.00;	author -;	state -;
+branches;
+next	1.4;
+
+1.4
+date	2014.06.04.23.39.22;	author -;	state -;
+branches;
+next	1.3;
+
+1.3
+date	2014.05.30.19.47.58;	author -;	state -;
+branches;
+next	1.2;
+
+1.2
+date	2014.05.28.00.16.42;	author -;	state -;
+branches;
+next	1.1;
+
+1.1
+date	2014.05.27.22.55.33;	author -;	state -;
+branches;
+next	;
+
+
+desc
+@@
+
+
+1.7
+log
+@-
+@
+text
+@// $Id: cix-server.cpp,v 1.6 2014-07-24 20:24:51-07 - - $
+
+#include <iostream>
+using namespace std;
+
+#include <libgen.h>
+
+#include "cix_protocol.h"
+#include "logstream.h"
+#include "signal_action.h"
+#include "sockets.h"
+
+logstream log (cout);
+
+void reply_ls (accepted_socket& client_sock, cix_header& header) {
+   FILE* ls_pipe = popen ("ls -l", "r");
+   if (ls_pipe == NULL) {
+      log << "ls -l: popen failed: " << strerror (errno) << endl;
+      header.cix_command = CIX_NAK;
+      header.cix_nbytes = errno;
+      send_packet (client_sock, &header, sizeof header);
+   }
+   string ls_output;
+   char buffer[0x1000];
+   for (;;) {
+      char* rc = fgets (buffer, sizeof buffer, ls_pipe);
+      if (rc == nullptr) break;
+      ls_output.append (buffer);
+   }
+   header.cix_command = CIX_LSOUT;
+   header.cix_nbytes = ls_output.size();
+   memset (header.cix_filename, 0, CIX_FILENAME_SIZE);
+   log << "sending header " << header << endl;
+   send_packet (client_sock, &header, sizeof header);
+   send_packet (client_sock, ls_output.c_str(), ls_output.size());
+   log << "sent " << ls_output.size() << " bytes" << endl;
+}
+
+
+bool SIGINT_throw_cix_exit = false;
+void signal_handler (int signal) {
+   log << "signal_handler: caught " << strsignal (signal) << endl;
+   switch (signal) {
+      case SIGINT: case SIGTERM: SIGINT_throw_cix_exit = true; break;
+      default: break;
+   }
+}
+
+int main (int argc, char** argv) {
+   log.execname (basename (argv[0]));
+   log << "starting" << endl;
+   vector<string> args (&argv[1], &argv[argc]);
+   signal_action (SIGINT, signal_handler);
+   signal_action (SIGTERM, signal_handler);
+   int client_fd = args.size() == 0 ? -1 : stoi (args[0]);
+   log << "starting client_fd " << client_fd << endl;
+   try {
+      accepted_socket client_sock (client_fd);
+      log << "connected to " << to_string (client_sock) << endl;
+      for (;;) {
+         if (SIGINT_throw_cix_exit) throw cix_exit();
+         cix_header header;
+         recv_packet (client_sock, &header, sizeof header);
+         log << "received header " << header << endl;
+         switch (header.cix_command) {
+            case CIX_LS:
+               reply_ls (client_sock, header);
+               break;
+            default:
+               log << "invalid header from client" << endl;
+               log << "cix_nbytes = " << header.cix_nbytes << endl;
+               log << "cix_command = " << header.cix_command << endl;
+               log << "cix_filename = " << header.cix_filename << endl;
+               break;
+         }
+      }
+   }catch (socket_error& error) {
+      log << error.what() << endl;
+   }catch (cix_exit& error) {
+      log << "caught cix_exit" << endl;
+   }
+   log << "finishing" << endl;
+   return 0;
+}
+
+@
+
+
+1.6
+log
+@-
+@
+text
+@d1 1
+a1 1
+// $Id: cix-server.cpp,v 1.5 2014-06-05 20:16:00-07 - - $
+d40 1
+d44 1
+a44 1
+      case SIGINT: case SIGTERM: throw cix_exit();
+d53 2
+a54 2
+   //signal_action (SIGINT, signal_handler);
+   //signal_action (SIGTERM, signal_handler);
+d61 1
+@
+
+
+1.5
+log
+@-
+@
+text
+@d1 1
+a1 1
+// $Id: cix-server.cpp,v 1.4 2014-06-04 16:39:22-07 - - $
+d48 1
+a48 1
+int main (int argc, char**argv) {
+@
+
+
+1.4
+log
+@-
+@
+text
+@d1 1
+a1 1
+// $Id: cix-server.cpp,v 1.3 2014-05-30 12:47:58-07 - - $
+d54 1
+a54 1
+   int client_fd = stoi (args[0]);
+@
+
+
+1.3
+log
+@-
+@
+text
+@d1 1
+a1 1
+// $Id: cix-server.cpp,v 1.2 2014-05-27 17:16:42-07 - - $
+d52 2
+a53 2
+   signal_action (SIGINT, signal_handler);
+   signal_action (SIGTERM, signal_handler);
+@
+
+
+1.2
+log
+@-
+@
+text
+@d1 1
+a1 1
+// $Id: cix-server.cpp,v 1.1 2014-05-27 15:55:33-07 - - $
+d49 1
+a49 1
+   log.set_execname (basename (argv[0]));
+@
+
+
+1.1
+log
+@-
+@
+text
+@d1 1
+a1 1
+// $Id: cixserver.cpp,v 1.8 2014-05-27 15:49:34-07 - - $
+d10 1
+d40 8
+d52 2
+d77 2
+@

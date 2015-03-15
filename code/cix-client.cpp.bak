@@ -88,7 +88,7 @@ int main (int argc, char** argv) {
          getline (cin, line);
          if (cin.eof()) throw cix_exit();
          if (SIGINT_throw_cix_exit) throw cix_exit();
-         log << "command " << line << endl; //has to be changed to parse the string for multiple files
+         log << "command " << line << endl;
          const auto& itor = command_map.find (line);
          cix_command cmd = itor == command_map.end()
                          ? CIX_ERROR : itor->second;
@@ -102,15 +102,6 @@ int main (int argc, char** argv) {
             case CIX_LS:
                cix_ls (server);
                break;
-            case CIX_ GET:
-              cix_get(server);
-              break;
-            case CIX_PUT:
-              cix_put(server);
-              break;
-            case CIX_RM:
-            	cix_rm(server);
-            	break;
             default:
                log << line << ": invalid command" << endl;
                break;

@@ -36,28 +36,22 @@ void reply_ls (accepted_socket& client_sock, cix_header& header) {
    log << "sent " << ls_output.size() << " bytes" << endl;
 }
 
-void reply_get (accepted_socket& client_sock, cix_header& header){
-   FILE* get_pipe = popen ("get", "r");
-   if (get_pipe == NULL) {
-     log << "get : popen failed: " << strerror (errno) << endl;
-     header.cix_command = CIX_NAK;
-     header.cix_nbytes = errno;
-     send_packet (client_sock, &header, sizeof header);
-     }
-     File get_out = ;
-     char buff[4096];
-     for (;;) {
-       char* rd = fgets (buff, sizeof buff, get_pipe);
-       if (rd == nullptr) break;
-       get_out.append(buff);
-     }
-   header.cix_command = CIX_GETOUT;
-   header.cix_nbytes = get_out.size();
-   send_packet (client_sock, &header, sizeof header);
-   send_packet (client_sock, get_out.c_str(), get_out.size());
-   }
-
-   
+void reply_get (accepted_socket& client_sock, cix_header&header){
+	FILE* get_pipe = popen ("get", "r");
+	if (get_pipe == NULL) {
+		log << "get : popen failed: " << strerror (errno) << endl;
+		header.cix_command = CIX_NAK;
+		header.cix_nbytes = errno;
+		send_packet (client_sock, &header, sizeof header);
+		}
+		string get_out;
+		char buff[4096];
+		for (;;) {
+			char* rd = fgets (buff, sizeof buff, get_pipe);
+			if (rd == nullptr) break;
+			ls_output.append(buffer);
+		}
+	}
 
 
 bool SIGINT_throw_cix_exit = false;
@@ -90,14 +84,14 @@ int main (int argc, char** argv) {
                reply_ls (client_sock, header);
                break;
             case CIX_GET: 
-               reply_get (client_sock, header); //need to make these functions and have them work
-               break;
+            	 reply_get (client_sock, header); //need to make these functions and have them work
+            	 break;
             case CIX_PUT:
-              reply_put (client_sock, header);
-              break;
+            	reply_put (client_sock, header);
+            	break;
             case CIX_RM 
-              reply_put(client_sock, header);
-              break;
+            	reply_put(client_sock, header);
+            	break;
             default:
                log << "invalid header from client" << endl;
                log << "cix_nbytes = " << header.cix_nbytes << endl;

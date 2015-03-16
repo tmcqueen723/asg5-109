@@ -39,25 +39,51 @@ void reply_ls (accepted_socket& client_sock, cix_header& header) {
 void reply_get (accepted_socket& client_sock, cix_header& header){
    FILE* get_pipe = popen ("get", "r");
    if (get_pipe == NULL) {
-     log << "get : popen failed: " << strerror (errno) << endl;
-     header.cix_command = CIX_NAK;
-     header.cix_nbytes = errno;
-     send_packet (client_sock, &header, sizeof header);
-     }
-     File get_out = ;
-     char buff[4096];
-     for (;;) {
-       char* rd = fgets (buff, sizeof buff, get_pipe);
-       if (rd == nullptr) break;
-       get_out.append(buff);
-     }
-   header.cix_command = CIX_GETOUT;
-   header.cix_nbytes = get_out.size();
-   send_packet (client_sock, &header, sizeof header);
-   send_packet (client_sock, get_out.c_str(), get_out.size());
+      log << "get : popen failed: " << strerror (errno) << endl;
+        header.cix_command = CIX_NAK;
+      header.cix_nbytes = errno;
+      send_packet (client_sock, &header, sizeof header);
+        }
+   string get_out ;
+   char buffer[0x1000];
+   for (;;) {
+      char* rd = fgets (buffer, sizeof buffer, get_pipe);
+      if (header.cix_filename == trim(buffer)){
+         get_out = load_file (header);
+         cout << get_out;
+      }
+         if (rd == nullptr) break;
    }
+      header.cix_nbytes = get_out.size();
+      header.cix_command = CIX_FILE;
+      log << "sending header " << header << endl;
+      send_packet (client_sock, &header, sizeof header);
+      send_packet (client_sock, get_out.c_str(), get_out.size());
+      log << "sent " << get_out.size() << " bytes" << endl;
+}
 
-   
+
+void reply_put (accepted_socket& client_sock, cix_header& header) {
+   char buffer[header.cix_nbytes + 1];
+   recv_packet (client_sock, buffer, header.cix_nbytes);
+   log << "received " << header.cix_nbytes << "bytes" << endl;
+   buffer[header.cix_nbytes] = '\0';
+   write_file (header, buffer);
+   send_packet (client_sock, &header, sizeof header);
+}
+
+void reply_rm (accepted_socket& client_sock, cix_header& header) {
+   if (!unlink (header.cix_filename)) {
+      header.cix_command = CIX_ACK;
+      log << "Successfully removed " << header.cix_filename << endl;
+      send_packet (client_sock, &header, sizeof header);
+   }else {
+      header.cix_command = CIX_NAK;
+      log << "Could not remove " << header.cix_filename << endl;
+      send_packet (client_sock, &header, sizeof header);
+   }
+}
+
 
 
 bool SIGINT_throw_cix_exit = false;
@@ -90,13 +116,13 @@ int main (int argc, char** argv) {
                reply_ls (client_sock, header);
                break;
             case CIX_GET: 
-               reply_get (client_sock, header); //need to make these functions and have them work
+               reply_get (client_sock, header);
                break;
             case CIX_PUT:
               reply_put (client_sock, header);
               break;
             case CIX_RM 
-              reply_put(client_sock, header);
+              reply_rm (client_sock, header);
               break;
             default:
                log << "invalid header from client" << endl;

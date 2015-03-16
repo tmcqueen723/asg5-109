@@ -21,6 +21,9 @@ unordered_map<string,cix_command> command_map {
    {"exit", CIX_EXIT},
    {"help", CIX_HELP},
    {"ls"  , CIX_LS  },
+   {"get" , CIX_GET },
+   {"put" , CIX_PUT },
+   {"rm"  , CIX_RM  },
 };
 
 void cix_help() {
@@ -33,6 +36,72 @@ void cix_help() {
       "rm filename  - Remove file from remote server.",
    };
    for (const auto& line: help) cout << line << endl;
+}
+
+void cix_get (client_socket& server, basic_string<char> filename) {
+   cix_header header;
+   header.cix_command = CIX_GET;
+   strcpy(header.cix_filename, const_cast<char*>(filename.c_str()));
+   log << "sending header " << header << endl;
+   send_packet (server, &header, sizeof header);
+   recv_packet (server, &header, sizeof header);
+   log << "recieved header " << header << endl;
+   if (header.cix_command != CIX_FILE) {
+      log << "sent CIX_GET, server did not return CIX_FILE" << endl;
+      log << "server returned " << header << endl;
+   }else{
+      char buffer[header.cix_nbytes + 1];
+      recv_packet (server, buffer, header.cix_nbytes);
+      log << "received " << header.cix_nbytes << " bytes" << endl;
+      buffer[header.cix_nbytes] = '\0';
+      cout << buffer;
+      write_file (header, buffer);
+   }
+}
+
+void cix_put (client_socket& server, basic_string<char> filename) {
+   cix_header header;
+   header.cix_command = CIX_PUT;
+   strcpy (header.cix_filename, const_cast<char*> (filename.c_str()));
+   FILE* put_pipe = popen ("ls", "r");
+   if (put_pipe == NULL) {
+      log << "ls -l: popen failed: " << strerror (errno) << endl;
+      return;
+   }
+   string put_output;
+   char buffer[0x1000];
+   for (;;) {
+      char* rc = fgets (buffer, sizeof buffer, put_pipe);
+      if (header.cix_filename == trim (buffer)) {
+         put_output = load_file (header);
+      }
+      if (rc == nullptr) break;
+   }
+   header.cix_nbytes = put_output.size();
+   log << "sending header " << header << endl;
+   send_packet (server, &header, sizeof header);
+   send_packet (server, put_output.c_str(), put_output.size());
+   log << "sent " << put_output.size() << " bytes" << endl;
+   recv_packet (server, &header, sizeof header);
+   log << "received header " << header << endl;
+   if (header.cix_command != CIX_ACK) {
+      log << "sent CIX_PUT, server did not return CIX_ACK" << endl;
+      log << "server returned " << header << endl;
+   }
+}
+
+void cix_rm (client_socket& server, basic_string<char> filename) {
+   cix_header header;
+   header.cix_command = CIX_RM;
+   strcpy (header.cix_filename, const_cast<char*> (filename.c_str()));
+   log << "sending header " << header << endl;
+   send_packet (server, &header, sizeof header);
+   recv_packet (server, &header, sizeof header);
+   log << "received header " << header << endl;
+   if (header.cix_command != CIX_ACK) {
+      log << "sent CIX_RM, server did not return CIX_ACK" << endl;
+      log << "server returned " << header << endl;
+   }
 }
 
 void cix_ls (client_socket& server) {
@@ -84,11 +153,22 @@ int main (int argc, char** argv) {
       client_socket server (host, port);
       log << "connected to " << to_string (server) << endl;
       for (;;) {
+         string file_n;
          string line;
          getline (cin, line);
          if (cin.eof()) throw cix_exit();
          if (SIGINT_throw_cix_exit) throw cix_exit();
-         log << "command " << line << endl; //has to be changed to parse the string for multiple files
+         auto itor = line.fine_first_of(" ");
+         if (itor != string::npos){
+            file_n = line.substr(++itor);
+            line = line.substr(0,itor-1);
+         }
+         bool bad_n = false;
+         for (size_t i = 0; i < file_n.size(); ++i){
+            if (file_n[i] == '/') bad_n = true;
+         }
+         if (bad_n) continue;
+         log << "command " << line << endl;
          const auto& itor = command_map.find (line);
          cix_command cmd = itor == command_map.end()
                          ? CIX_ERROR : itor->second;
@@ -103,13 +183,21 @@ int main (int argc, char** argv) {
                cix_ls (server);
                break;
             case CIX_ GET:
-              cix_get(server);
-              break;
+               if (args.size() <= 1) {
+                  log << "no filename given" << endl;
+               } else {
+               cix_get(server, file_n);
+               }
+               break;
             case CIX_PUT:
-              cix_put(server);
-              break;
+                if (args.size() <= 1) {
+                  log << "no filename given" << endl;
+               } else {
+                  cix_put(erver, file_n);
+               }
+               break;
             case CIX_RM:
-            	cix_rm(server);
+            	cix_rm(server, file_n);
             	break;
             default:
                log << line << ": invalid command" << endl;

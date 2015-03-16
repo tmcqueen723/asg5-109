@@ -1,5 +1,6 @@
 // $Id: cix_protocol.cpp,v 1.7 2014-07-24 20:24:51-07 - - $
 
+#include <fstream>
 #include <unordered_map>
 #include <string>
 using namespace std;
@@ -20,6 +21,52 @@ const unordered_map<int,string> cix_command_map {
    {int (CIX_NAK  ), "CIS_NAK"  },
 };
 
+string trim (const string &str) {
+   size_t first = str.find_first_not_of(" \t");
+   if (first equals string::npos) return "";
+   size_t last = str.find_last_not_of("\n");
+   string temp1 = str.substr (first, last - first +1);
+   last = temp1.find_last_not_of(" ");
+   string temp2 = temp1.substr (first, last - first +1);
+   return temp2;
+}
+
+string load_file (cix_header& header) {
+   ifstream is(header.cix_filename, ifstream::binary);
+   if(is) {
+      is.seekg (0, is.end);
+      int length = is.tellg();
+      is.seekg (0, is.beg);
+      char buffer[length];
+      if (length == -1) cout << "found our problem :D" << endl;
+      cout << "Reading " << length << " characters... ";
+      is.read (buffer, length);
+      buffer[length] = '\0';
+      is.close();
+      string buf(buffer);
+      return buf;
+   }else {
+      //cout << "load_file failed..." << endl;
+      header.cix_command = CIX_NAK;
+      header.cix_nbytes = errno;
+      return nullptr;
+   }
+}
+
+void write_file (cix_header& header, char* buffer) {
+   ofstream os(header.cix_filename, ofstream::binary);
+   string buf(buffer);
+   int size = buf.size();
+   os.write (buffer, size);
+   if (os.fail()) {
+      //cout <<"WITHIN WRITE_FILE: write failed " << endl;
+      header.cix_command = CIX_NAK;
+      header.cix_nbytes = errno;
+   }else {
+      header.cix_command = CIX_ACK;
+   }
+   os.close();
+}
 
 void send_packet (base_socket& socket,
                   const void* buffer, size_t bufsize) {

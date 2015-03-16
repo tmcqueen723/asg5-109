@@ -21,6 +21,12 @@ struct cix_header {
    char cix_filename[CIX_FILENAME_SIZE] {};
 };
 
+string trim (const string &str);
+
+string load_file (cix_header& header);
+
+void write_file (cix_header& header, char* buffer);
+
 void send_packet (base_socket& socket,
                   const void* buffer, size_t bufsize);
 
